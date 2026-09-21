@@ -75,7 +75,7 @@ engines:
   - name: qwant
     disabled: false
 
-  # rejected general engines (generally, quality is pretty low here)
+  # rejected general engines (generally, quality wasn't high enough for these engines and they frequently returned unusable results)
   - name: bing
     disabled: true
   - name: yahoo

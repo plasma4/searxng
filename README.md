@@ -1,9 +1,21 @@
-# Custom SearXNG UI
+# SearXNG reskin!
 
-A SearXNG deployment with a cleaner, customized simple theme. The theme uses
-OKLCH color logic to keep hues and colors consistent, adds a few appearance
-customization options on the preferences page, and ships no external fonts,
-scripts or images.
+This is simply a custom version with cleaner themeing and a few appearance customization options. Nothing fancy: uses OKLCH logic to keep hues and colors reasonably appealing. No additional network/font requests versus the base SearXNG.
+
+To switch the theme color, go to Preferences and customize the hue of the theme or background flavor.
+
+## Quick start
+
+Make sure you have Docker installed.
+
+```sh
+cp .env.example .env # make sure to edit the scret!
+docker compose up -d
+```
+
+## Notes
+
+You'll want to customize the SearXNG settings as needed for your specific use-case.
 
 ## Quick start
 
@@ -12,20 +24,10 @@ cp .env.example .env      # then edit SEARXNG_SECRET
 docker compose up -d      # requires the .env secret
 ```
 
-Open http://localhost:9000. Stop with `docker compose down`.
+This'll set SearXNG to be on http://localhost:9000. Stop with `docker compose down`.
 
 ## Layout
 
-- `searxng/settings.yml` — instance settings, merged on top of the upstream
-  defaults (`use_default_settings: true`). Engines here enable/disable the
-  curated list; anything not listed inherits the upstream default.
-- `ui/simple/base.html` — overridden `simple` theme template, mounted read-only
-  into the container. See `ui/README.md` for the upgrade procedure.
-- `docker-compose.yml` — the pinned SearXNG image plus a Valkey cache.
-
-## Configuration
-
-- Signing key: `SEARXNG_SECRET` in `.env` (never commit a real one).
-- Instance URL: `SEARXNG_BASE_URL` in `docker-compose.yml`.
-- Engines, timeouts and suspended times: `searxng/settings.yml`.
-- Theme hue/background swatches: preferences page (stored per-browser).
+- `searxng/settings.yml` has necessary instance settings.
+- `ui/simple/base.html` holds the custom theme.
+- `docker-compose.yml` pins the SearXNG image and has a Valkey cache.
