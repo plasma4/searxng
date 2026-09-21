@@ -3,9 +3,9 @@ services:
     # Pinned by digest. ui/simple/base.html is a copy of this exact image's
     # template; on a blind `:latest` pull the copy could go stale against a
     # changed backend (renamed asset, new context variable) and break the page.
-    # To upgrade: pull, re-extract base.html, re-apply the <style> block, bump
-    # the digest. See ui/README.md.
-    image: searxng/searxng:latest@sha256:3aed6b4bfb4e6a2b3b94c890dafb3f35cb2588493b83818434aa260e8bdeb4d4
+    # To upgrade: run ui/upgrade.sh, which three-way merges ui/simple/base.html
+    # against the new image's template and bumps this digest. See ui/README.md.
+    image: searxng/searxng@sha256:76f9ec5b3832921c8734c06c34248c9538d94a6cae0cf5e579fa5b41c8479789
     container_name: searxng
     ports:
       - "127.0.0.1:9000:8080"

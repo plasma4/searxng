@@ -3,3 +3,7 @@
 .env
 .env.*
 !.env.example
+
+# ui/upgrade.sh scratch files
+ui/simple/base.html.bak
+ui/simple/base.html.merged
