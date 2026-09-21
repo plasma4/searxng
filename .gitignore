@@ -1,1 +1,5 @@
 **/.DS_Store
+# Local secrets / environment (never commit)
+.env
+.env.*
+!.env.example

@@ -10,7 +10,7 @@ general:
 
 search:
   safe_search: 0
-  autocomplete: "duckduckgo" #
+  autocomplete: "duckduckgo"
   autocomplete_min: 4
   favicon_resolver: "duckduckgo"
   default_lang: "auto"
@@ -35,10 +35,11 @@ server:
   # Container-internal listener; the host port is set by the mapping in docker-compose.yml (9000:8080).
   port: 8080
   bind_address: "0.0.0.0"
-  secret_key: "***REMOVED***"
+  # The signing key lives in .env (SEARXNG_SECRET) and is injected by
+  # docker-compose.yml. Never hard-code it here: this file is committed to git.
 
 outgoing:
-  # upstream default is 2.0s
+  # upstream default is 3.0s
   request_timeout: 2.0
   # default is 10.0s
   max_request_timeout: 5.0
