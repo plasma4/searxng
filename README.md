@@ -1,8 +1,13 @@
 # SearXNG reskin!
 
-This is simply a custom version with cleaner themeing and a few appearance customization options. Nothing fancy: uses OKLCH logic to keep hues and colors reasonably appealing. No additional network/font requests versus the base SearXNG.
+This is simply a custom version with cleaner themeing and a few appearance customization options. Nothing fancy: uses OKLCH logic to keep hues and link/UI colors reasonably appealing. No additional network/font requests versus the base SearXNG.
 
-To switch the theme color, go to Preferences and customize the hue of the theme or background flavor.
+To switch the theme color, go to Preferences and customize the hue of the theme or background flavor. **This is not a public instance.**
+![Themes](themes.png)
+
+Example with the green theme:
+
+![Example search results for "hello"](example.png)
 
 ## Quick start
 
