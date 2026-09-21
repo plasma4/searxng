@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html
+  class="no-js theme-{{ preferences.get_value('simple_style') or 'auto' }} center-alignment-{{ preferences.get_value('center_alignment') and 'yes' or 'no' }}"
+  lang="{{ locale_rfc5646 }}" {% if rtl %} dir="rtl" {% endif %}>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="endpoint" content="{{ endpoint }}">
+  <meta name="description" content="SearXNG — a privacy-respecting, open metasearch engine">
+  <meta name="keywords" content="SearXNG, search, search engine, metasearch, meta search">
+  <meta name="generator" content="searxng/{{ searxng_version }}">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noarchive">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{% endblock %}{{ instance_name }}</title>
+  <script type="module" src="{{ url_for('static', filename='sxng-core.min.js') }}"
+    client_settings="{{ client_settings }}"></script>
+  {% block meta %}{% endblock %}
+  {% if rtl %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='sxng-rtl.min.css') }}" type="text/css" media="screen">
+  {% else %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='sxng-ltr.min.css') }}" type="text/css" media="screen">
+  {% endif %}
+  {% if get_setting('server.limiter') or get_setting('server.public_instance') %}
+  <link rel="stylesheet" href="{{ url_for('client_token', token=link_token) }}" type="text/css">
+  {% endif %}
+  {% block head %}
+  <link title="{{ instance_name }}" type="application/opensearchdescription+xml" rel="search"
+    href="{{ opensearch_url }}">
+  {% endblock %}
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.png') }}" sizes="any">
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link rel="manifest" href="{{ url_for('manifest') }}" />
+  {# ---------------------------------------------------------------------------
+  Local restyle. Overrides the simple theme's CSS custom properties (plus a
+  small set of layout rules), so it needs no Less/node build and does not
+  fight selector specificity with the upstream sheet. Must stay after the
+  stylesheet link above: the cascade resolves these by source order.
+
+  No external fonts, scripts or images. A third-party request here would leak
+  the searcher's IP and referring page and defeat the point of self-hosting.
+
+  Colours are OKLCH. If a browser lacks oklch() or light-dark(), each
+  declaration is simply invalid-at-computed-value and upstream's hex value
+  applies -- the page degrades to stock rather than breaking.
+  --------------------------------------------------------------------------- #}
+  <style>
+    /* ======================================================================
+       PALETTE
+       One 60° hue window, rotated as a unit by --h0. Every accent in the UI is
+       placed at a fixed offset inside that window, which is what keeps a
+       six-colour interface reading as one colour.
+           --h0 +0   seagreen  category bar, selected states
+                +18  teal      buttons, checkmarks, focus
+                +16  --        footer links (24° off the numerals beside them)
+                +20  --        surface tint (near-neutral, seagreen-leaning)
+                +28  --        footer panel
+                +40  --        numerals
+                +60  sky blue  links
+       --tint scales surface chroma only (0 = neutral greys, 2 = most flavour).
+       Both are overridable from the swatch row on the preferences page.
+
+       Selector is `:root:root`, not `:root`. Upstream scopes its dark palette
+       to `:root.theme-auto` (0,2,0) inside a media query, which outranks a
+       plain `:root` (0,1,0) no matter how late it appears -- so a single-:root
+       block silently left dark mode stock. Doubling the pseudo-class matches
+       that specificity and wins on source order, for every theme class.
+       ====================================================================== */
+    :root:root {
+      --h0: 172;
+      --tint: 1;
+
+      --h-nav: var(--h0);
+      --h-btn: calc(var(--h0) + 18);
+      --h-surf: calc(var(--h0) + 20);
+      --h-foot: calc(var(--h0) + 34);
+      /* Footer links sat 6° from the version numerals next to them, which at
+         these chromas is not a visible difference -- the two lines read as one
+         colour until you hover. Pulling the links back to the teal end of the
+         window puts 24° between them, so the split is legible at rest. */
+      --h-foot-link: calc(var(--h0) + 16);
+      --h-num: calc(var(--h0) + 40);
+      --h-link: calc(var(--h0) + 60);
+
+      /* Alerts are the one region the window above cannot reach: an error has
+         to read as red and a warning as amber whatever --h0 is, so these hues
+         are absolute, not offsets from --h0. Rather than exempt the boxes from
+         the rule, each gets its OWN 60° window and every colour inside it --
+         surface, border, text, bullets, link, hover -- sits at a fixed offset
+         in that window, which is the same construction as the page palette,
+         just anchored somewhere else. The link is +30 in each (an alert's
+         second colour, not the page's), so the two windows overlap at their
+         warm ends and an error box and a warning box still look related. */
+      --h-err: 25;
+      --h-err-link: calc(var(--h-err) + 30);
+      --h-warn: 95;
+      /* -30, not +30: +30 lands at 125 (green), which is the success colour. */
+      --h-warn-link: calc(var(--h-warn) - 30);
+      --h-ok: 145;
+      --h-ok-link: calc(var(--h-ok) + 30);
+
+      --sxng-radius: 12px;
+      --sxng-radius-sm: 9px;
+
+      /* light-dark() resolves against the used color-scheme (set per theme
+         class below), so the whole palette is declared once instead of being
+         repeated for :root / .theme-dark / .theme-black / auto+media-query. */
+      --color-base-font: light-dark(oklch(32% 0.016 var(--h-surf)), oklch(87% 0.012 var(--h-surf)));
+      --color-base-background: light-dark(oklch(98.8% calc(0.006 * var(--tint)) var(--h-surf)), oklch(17.5% calc(0.008 * var(--tint)) var(--h-surf)));
+      --color-base-background-mobile: var(--color-base-background);
+
+      --color-header-background: light-dark(oklch(99.5% calc(0.005 * var(--tint)) var(--h-surf)), oklch(20% calc(0.009 * var(--tint)) var(--h-surf)));
+      --color-header-border: light-dark(oklch(92% calc(0.010 * var(--tint)) var(--h-surf)), oklch(27% calc(0.012 * var(--tint)) var(--h-surf)));
+      --color-footer-background: light-dark(oklch(97% calc(0.016 * var(--tint)) var(--h-foot)), oklch(21.5% calc(0.018 * var(--tint)) var(--h-foot)));
+      --color-footer-border: light-dark(oklch(93% calc(0.012 * var(--tint)) var(--h-foot)), oklch(26% calc(0.016 * var(--tint)) var(--h-foot)));
+
+      --color-result-background: light-dark(oklch(100% 0 0), oklch(21.5% calc(0.009 * var(--tint)) var(--h-surf)));
+      --color-result-border: light-dark(oklch(93% calc(0.008 * var(--tint)) var(--h-surf)), oklch(26.5% calc(0.011 * var(--tint)) var(--h-surf)));
+      --color-answer-background: var(--color-result-background);
+      --color-sidebar-background: var(--color-result-background);
+      --color-sidebar-border: var(--color-result-border);
+      --color-sidebar-font: var(--color-base-font);
+      --color-result-keyvalue-even: var(--color-result-background);
+      --color-result-keyvalue-odd: light-dark(oklch(97.5% calc(0.008 * var(--tint)) var(--h-surf)), oklch(19.5% calc(0.010 * var(--tint)) var(--h-surf)));
+      --color-result-keyvalue-col-table: var(--color-result-keyvalue-odd);
+
+      /* Links: the sky-blue end of the window. */
+      --color-result-link-font: light-dark(oklch(48% 0.135 var(--h-link)), oklch(79% 0.105 var(--h-link)));
+      --color-result-link-font-highlight: var(--color-result-link-font);
+      --color-url-font: var(--color-result-link-font);
+      /* Visited stays inside the window -- a dimmer, less saturated blue rather
+         than the stock purple, which sat 90° outside the palette. */
+      --color-result-link-visited-font: light-dark(oklch(53% 0.055 var(--h-num)), oklch(70% 0.045 var(--h-num)));
+      --color-url-visited-font: var(--color-result-link-visited-font);
+
+      --color-result-url-font: light-dark(oklch(45% 0.020 var(--h-surf)), oklch(72% 0.018 var(--h-surf)));
+      --color-result-engines-font: light-dark(oklch(55% 0.018 var(--h-surf)), oklch(65% 0.016 var(--h-surf)));
+      --color-result-publishdate-font: light-dark(oklch(54% 0.016 var(--h-surf)), oklch(63% 0.014 var(--h-surf)));
+      --color-result-description-highlight-font: light-dark(oklch(22% 0.02 var(--h-surf)), oklch(95% 0.015 var(--h-surf)));
+      --color-result-search-url-font: var(--color-base-font);
+      --color-result-search-url-border: var(--color-result-border);
+
+      /* Category bar: the seagreen end. */
+      --color-categories-item-selected-font: light-dark(oklch(47% 0.115 var(--h-nav)), oklch(81% 0.115 var(--h-nav)));
+      --color-categories-item-border-selected: light-dark(oklch(55% 0.130 var(--h-nav)), oklch(72% 0.130 var(--h-nav)));
+
+      /* Buttons / controls: the teal middle. */
+      --color-btn-background: light-dark(oklch(56% 0.120 var(--h-btn)), oklch(72% 0.115 var(--h-btn)));
+      --color-btn-font: light-dark(oklch(100% 0 0), oklch(19% 0.02 var(--h-btn)));
+      --color-show-btn-background: light-dark(oklch(90% 0.02 var(--h-surf)), oklch(33% 0.02 var(--h-surf)));
+      --color-show-btn-font: var(--color-base-font);
+
+      --color-search-background: light-dark(oklch(100% 0 0), oklch(23% calc(0.010 * var(--tint)) var(--h-surf)));
+      --color-search-font: light-dark(oklch(27% 0.015 var(--h-surf)), oklch(95% 0.010 var(--h-surf)));
+      --color-search-border: light-dark(oklch(89% 0.012 var(--h-surf)), oklch(31% 0.014 var(--h-surf)));
+      --color-search-background-hover: var(--color-btn-background);
+      --color-search-shadow: 0 1px 2px light-dark(oklch(35% 0.03 var(--h-surf) / .07), oklch(0% 0 0 / .32)),
+        0 8px 24px light-dark(oklch(35% 0.03 var(--h-surf) / .09), oklch(0% 0 0 / .30));
+
+      --color-autocomplete-background: var(--color-search-background);
+      --color-autocomplete-font: var(--color-search-font);
+      --color-autocomplete-border: var(--color-search-border);
+      --color-autocomplete-background-hover: light-dark(oklch(95.5% 0.014 var(--h-surf)), oklch(28% 0.016 var(--h-surf)));
+      --color-autocomplete-shadow: var(--color-search-shadow);
+
+      --color-toolkit-select-background: light-dark(oklch(95.5% calc(0.014 * var(--tint)) var(--h-surf)), oklch(26.5% calc(0.014 * var(--tint)) var(--h-surf)));
+      --color-toolkit-select-background-hover: light-dark(oklch(92% 0.026 var(--h-btn)), oklch(31% 0.026 var(--h-btn)));
+      --color-toolkit-select-border: var(--color-result-border);
+      --color-toolkit-input-text-font: var(--color-search-font);
+      --color-toolkit-checkbox-onoff-on-mark-background: var(--color-btn-background);
+      --color-toolkit-checkbox-onoff-on-background: var(--color-toolkit-select-background);
+      --color-toolkit-checkbox-onoff-off-background: var(--color-toolkit-select-background);
+      --color-toolkit-checkbox-input-border: var(--color-btn-background);
+      --color-toolkit-checkbox-label-background: var(--color-toolkit-select-background);
+      --color-toolkit-checkbox-label-border: var(--color-result-border);
+      --color-toolkit-dialog-background: var(--color-result-background);
+      --color-toolkit-dialog-border: var(--color-result-border);
+      --color-toolkit-tabs-section-border: var(--color-result-border);
+      --color-toolkit-engine-tooltip-background: var(--color-result-background);
+      --color-toolkit-engine-tooltip-border: var(--color-result-border);
+
+      --color-settings-tr-hover: light-dark(oklch(96% 0.014 var(--h-surf)), oklch(25% 0.014 var(--h-surf)));
+      --color-settings-table-group-background: light-dark(oklch(95% 0.016 var(--h-surf)), oklch(24% 0.016 var(--h-surf)));
+      --color-settings-engine-description-font: var(--color-result-engines-font);
+
+      --color-backtotop-background: var(--color-result-background);
+      --color-backtotop-border: var(--color-result-border);
+      --color-backtotop-font: var(--color-base-font);
+
+      /* Alerts. Upstream ships four fixed hexes here, so the boxes ignored
+         theme-black and the light pair measured 3.72:1 -- under AA for the
+         body text of a box whose whole job is to be read. Restated in the
+         alert windows: worst pair is now 5.73:1. The surfaces double as the
+         .danger / .warning / .success table cells on the preferences Engines
+         tab, so they are tinted far enough down to keep --color-base-font
+         readable on them (>=11:1) rather than being alert-coloured panels. */
+      --color-error: light-dark(oklch(50% 0.190 var(--h-err)), oklch(74% 0.150 var(--h-err)));
+      --color-error-background: light-dark(oklch(95.5% 0.022 var(--h-err)), oklch(23.5% 0.050 var(--h-err)));
+      --color-warning: light-dark(oklch(47% 0.095 var(--h-warn)), oklch(85% 0.150 var(--h-warn)));
+      --color-warning-background: light-dark(oklch(96% 0.050 var(--h-warn)), oklch(24.5% 0.045 var(--h-warn)));
+      --color-success: light-dark(oklch(47% 0.140 var(--h-ok)), oklch(80% 0.180 var(--h-ok)));
+      --color-success-background: light-dark(oklch(95.5% 0.050 var(--h-ok)), oklch(23.5% 0.050 var(--h-ok)));
+
+      /* Own additions. */
+      /* "cached" recedes by hue and by only lighting up on hover, NOT by being
+         dimmed below legibility: at 54.5%/63% it lands level with the engine
+         credits (~4.7:1 light, ~5.5:1 dark) instead of under AA. */
+      --sxng-cached: light-dark(oklch(54.5% 0.042 var(--h-num)), oklch(63% 0.040 var(--h-num)));
+      --sxng-cached-hover: light-dark(oklch(46% 0.090 var(--h-num)), oklch(78% 0.080 var(--h-num)));
+      /* Hue-only shift off --h-foot; L and C are unchanged, so the measured
+         contrast moves by <0.05 (6.20:1 light / 7.78:1 dark, worst tint). */
+      --sxng-foot-link: light-dark(oklch(46% 0.085 var(--h-foot-link)), oklch(74% 0.075 var(--h-foot-link)));
+      /* Reads as the quiet separator colour but still clears 4.5:1 on the
+         panel -- measured, not eyeballed. */
+      --sxng-foot-dim: light-dark(oklch(48% 0.020 var(--h-foot)), oklch(66% 0.018 var(--h-foot)));
+      --sxng-num: light-dark(oklch(50% 0.090 var(--h-num)), oklch(72% 0.070 var(--h-num)));
+      /* Hairline for grouping boxes: the surface's own colour at low alpha, so
+         it reads as a slightly lifted edge rather than as a drawn line. Pure
+         white/black rather than a palette hue -- it must not compete with the
+         accents sitting inside the box. */
+      --sxng-hairline: light-dark(oklch(0% 0 0 / .10), oklch(100% 0 0 / .10));
+      /* Links inside an alert: +30 into that alert's own window. Measured on
+         the alert surface, not the page: 5.93:1 / 10.47:1 (error) and
+         6.82:1 / 10.34:1 (warning). Hover goes toward the light end in dark
+         mode and the dark end in light mode, matching the rest of the sheet;
+         chroma follows the sRGB gamut boundary at those lightnesses, which is
+         why the hover values are less saturated rather than more. */
+      --sxng-err-link: light-dark(oklch(48% 0.115 var(--h-err-link)), oklch(85% 0.094 var(--h-err-link)));
+      --sxng-err-link-hover: light-dark(oklch(40% 0.098 var(--h-err-link)), oklch(91% 0.050 var(--h-err-link)));
+      --sxng-warn-link: light-dark(oklch(45% 0.100 var(--h-warn-link)), oklch(86% 0.095 var(--h-warn-link)));
+      --sxng-warn-link-hover: light-dark(oklch(37% 0.078 var(--h-warn-link)), oklch(92% 0.054 var(--h-warn-link)));
+      --sxng-ok-link: light-dark(oklch(45% 0.082 var(--h-ok-link)), oklch(86% 0.085 var(--h-ok-link)));
+      --sxng-ok-link-hover: light-dark(oklch(37% 0.068 var(--h-ok-link)), oklch(92% 0.050 var(--h-ok-link)));
+      --sxng-foot-stripe: light-dark(oklch(55% 0.06 var(--h-foot) / .045), oklch(85% 0.06 var(--h-foot) / .030));
+    }
+
+    /* light-dark() reads the used color-scheme, so the theme classes map onto it
+       directly. This also fixes native scrollbars and form controls, which the
+       stock theme leaves light in dark mode. */
+    :root:root.theme-auto {
+      color-scheme: light dark;
+    }
+
+    :root:root.theme-light {
+      color-scheme: only light;
+    }
+
+    :root:root.theme-dark,
+    :root:root.theme-black {
+      color-scheme: only dark;
+    }
+
+    :root:root.theme-black {
+      --color-base-background: oklch(0% 0 0);
+      --color-header-background: oklch(0% 0 0);
+      --color-result-background: oklch(14% calc(0.008 * var(--tint)) var(--h-surf));
+      --color-footer-background: oklch(15% calc(0.016 * var(--tint)) var(--h-foot));
+      --color-sidebar-background: oklch(0% 0 0);
+      /* The alert surfaces are the only remaining panels, so they follow the
+         result cards down rather than glowing on a pure black page. */
+      --color-error-background: oklch(17% 0.045 var(--h-err));
+      --color-warning-background: oklch(18% 0.040 var(--h-warn));
+      --color-success-background: oklch(17% 0.045 var(--h-ok));
+    }
+
+    /* ======================================================================
+       TYPOGRAPHY
+       ====================================================================== */
+    html {
+      /* Inter first (Brave's UI face) so a local install is picked up with no
+         network request; otherwise the platform UI font. No webfont is shipped
+         -- see ui/README.md if you want one. */
+      font-family: Inter, "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, system-ui, sans-serif;
+      /* Stock SF Pro renders heavy at these sizes, which is most obvious on the
+         bold preferences labels. Grayscale smoothing is the fix. */
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      font-optical-sizing: auto;
+    }
+
+    /* ======================================================================
+       SHAPE
+       Each selector matches one upstream border-radius rule at equal
+       specificity, so source order alone decides -- no !important needed.
+       Deliberately NOT overriding `#search_view:focus-within .search_box`,
+       which squares the box off for the mobile full-screen state.
+       ====================================================================== */
+    .search_box {
+      border-radius: var(--sxng-radius);
+    }
+
+    .autocomplete,
+    .autocomplete.open {
+      border-radius: var(--sxng-radius);
+    }
+
+    .result,
+    #answers,
+    #sidebar .infobox,
+    .engine-tooltip {
+      border-radius: var(--sxng-radius);
+    }
+
+    input[type=submit],
+    #results button[type=submit],
+    .button {
+      border-radius: var(--sxng-radius-sm);
+    }
+
+    #links_on_top a {
+      border-radius: 8px;
+    }
+
+    /* The query/submit pill is split left|right upstream. Logical properties
+       flip automatically under dir="rtl", so one rule covers both sheets. */
+    #q {
+      border-start-start-radius: var(--sxng-radius);
+      border-end-start-radius: var(--sxng-radius);
+      border-start-end-radius: 0;
+      border-end-end-radius: 0;
+    }
+
+    #send_search {
+      border-start-end-radius: var(--sxng-radius);
+      border-end-end-radius: var(--sxng-radius);
+      border-start-start-radius: 0;
+      border-end-start-radius: 0;
+    }
+
+    /* ======================================================================
+       RESULTS
+       ====================================================================== */
+    .result h3 {
+      font-size: 1.28rem;
+      margin: .45rem 0 .3rem;
+      text-wrap: pretty;
+    }
+
+    .result .content {
+      font-size: .95em;
+      line-height: 1.36;
+    }
+
+    /* Favicon nudged toward the URL, and the gap between them tightened. */
+    .result .url_header {
+      gap: .4rem;
+    }
+
+    .result .favicon {
+      margin-inline-start: .15rem;
+    }
+
+    /* Upstream inserts a 1ch spacer between host and path, which leaves the
+       "›" floating away from the hostname. Tightened by ~2px at 14.4px text. */
+    .result .url_wrapper .url_o1:after {
+      width: .72ch;
+    }
+
+    /* Breathing room between the result body and the engine credits. */
+    .result .engines {
+      padding-top: .55rem;
+    }
+
+    .result .engines span {
+      margin-inline-end: .55rem;
+    }
+
+    /* "cached" recedes: lower chroma, lower weight, and it only comes forward
+       on hover. Still ~5:1 against the card, so it stays readable. */
+    .result .engines .cache_link,
+    .result .engines .proxyfied_link {
+      color: var(--sxng-cached);
+    }
+
+    .result .engines .cache_link:hover,
+    .result .engines .proxyfied_link:hover {
+      color: var(--sxng-cached-hover);
+    }
+
+    .result .engines svg {
+      opacity: .55;
+    }
+
+    /* ======================================================================
+       ALERTS
+       The "no results" box, the engine-error box on the results page, the
+       preferences preview notice, and the reliability cells on the Engines
+       tab.
+
+       Upstream styles the box but not what is inside it, so its links kept
+       the page link colour: a sky-blue link sitting in a red box, or -- once
+       --h0 is rotated away from the default -- a sage-green one. Every link
+       in here is moved onto the box's own window instead (see --h-err-link).
+
+       Only the border colour is softened: upstream draws it at full
+       --color-error, so a whole-width box on an otherwise quiet results page
+       came with a saturated outline at the same weight as its text.
+       ====================================================================== */
+    .dialog-error,
+    .dialog-error-block,
+    .dialog-warning,
+    .dialog-warning-block,
+    .dialog-modal {
+      border-radius: var(--sxng-radius);
+    }
+
+    /* Not .dialog-modal: it borrows the result border, not an alert colour. */
+    .dialog-error,
+    .dialog-error-block,
+    .dialog-warning,
+    .dialog-warning-block {
+      /* currentColor is the alert's own text colour, so one rule covers both
+         severities. If color-mix() is missing the upstream border-color
+         applies and the box is merely louder -- it never loses its edge. */
+      border-color: color-mix(in oklab, currentColor 42%, transparent);
+    }
+
+    /* :visited is listed because upstream's `a:visited` (0,1,1) would
+       otherwise tie `.dialog-error a` (0,1,1) and be decided by source order
+       alone. The visited state is deliberately the same colour: these links
+       are navigation out of an error, not results worth tracking. */
+    .dialog-error a,
+    .dialog-error a:visited,
+    .dialog-error-block a,
+    .dialog-error-block a:visited,
+    td.danger a,
+    td.danger a:visited {
+      color: var(--sxng-err-link);
+    }
+
+    .dialog-error a:hover,
+    .dialog-error-block a:hover,
+    td.danger a:hover {
+      color: var(--sxng-err-link-hover);
+    }
+
+    .dialog-warning a,
+    .dialog-warning a:visited,
+    .dialog-warning-block a,
+    .dialog-warning-block a:visited,
+    td.warning a,
+    td.warning a:visited {
+      color: var(--sxng-warn-link);
+    }
+
+    .dialog-warning a:hover,
+    .dialog-warning-block a:hover,
+    td.warning a:hover {
+      color: var(--sxng-warn-link-hover);
+    }
+
+    /* No success dialog exists, but the reliability column does hand out
+       .success cells, and their link is the same problem in green. */
+    td.success a,
+    td.success a:visited {
+      color: var(--sxng-ok-link);
+    }
+
+    td.success a:hover {
+      color: var(--sxng-ok-link-hover);
+    }
+
+    /* The hue difference between an alert link and the text around it is 30°,
+       against 60° out on the page, and both are warm -- enough to see, not
+       enough to rely on alone. The underline carries the affordance that the
+       page's links get from being the only blue thing on a grey card. */
+    .dialog-error a,
+    .dialog-error-block a,
+    .dialog-warning a,
+    .dialog-warning-block a {
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: .16em;
+      text-decoration-color: color-mix(in oklab, currentColor 45%, transparent);
+    }
+
+    .dialog-error a:hover,
+    .dialog-error-block a:hover,
+    .dialog-warning a:hover,
+    .dialog-warning-block a:hover {
+      text-decoration-color: currentColor;
+    }
+
+    /* Bullets at full strength read as a third colour down the left edge. */
+    .dialog-error li::marker,
+    .dialog-error-block li::marker,
+    .dialog-warning li::marker,
+    .dialog-warning-block li::marker {
+      color: color-mix(in oklab, currentColor 60%, transparent);
+    }
+
+    /* ======================================================================
+       TOP-RIGHT NAV
+       Stock puts this at a fixed top offset, which lands differently on the
+       results page (search box) than on the header pages (logo). Centring it
+       on the search row and pulling it off the viewport edge makes the two
+       agree.
+       ====================================================================== */
+    #links_on_top {
+      top: 2.8rem;
+      right: 1.6rem;
+    }
+
+    body.page_with_header #links_on_top {
+      top: 1.6rem;
+    }
+
+    /* ======================================================================
+       FOOTER
+       Low-traffic, so it earns its place by grounding the page rather than by
+       being used: its own hue, a lifted panel edge, and a barely-there
+       diagonal texture.
+       ====================================================================== */
+    footer {
+      border-top: 0;
+      border-radius: var(--sxng-radius) var(--sxng-radius) 0 0;
+      min-height: 0;
+      /* body is `display:flex; flex-direction:column; height:100vh`, so the
+         footer is a shrinkable flex item. Upstream's `min-height: 4rem` was
+         what stopped it shrinking; dropping that to 0 let any page taller
+         than the viewport squeeze it to its padding, and upstream's
+         `overflow: hidden` then clipped the two text lines. Refusing to
+         shrink is the fix -- the height still comes from the content. */
+      flex-shrink: 0;
+      padding: .8rem 0 .9rem;
+      background-image: repeating-linear-gradient(135deg, transparent 0 12px, var(--sxng-foot-stripe) 12px 18px);
+    }
+
+    footer p {
+      font-size: 1.05em;
+      line-height: 1.45;
+      margin: 0;
+    }
+
+    footer a {
+      color: var(--sxng-foot-link);
+    }
+
+    footer a:visited {
+      color: var(--sxng-foot-link);
+    }
+
+    footer a:hover {
+      color: var(--color-result-link-font);
+    }
+
+    /* Version numerals get their own step in the window. */
+    footer .sxng-ver {
+      color: var(--sxng-num);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .01em;
+    }
+
+    /* The "|" separators were as loud as the links they separate. */
+    footer p {
+      color: var(--sxng-foot-dim);
+    }
+
+    /* ======================================================================
+       PREFERENCES
+       ====================================================================== */
+    select {
+      border-radius: var(--sxng-radius-sm);
+      height: 2.55rem;
+      padding: .4rem .7rem !important;
+    }
+
+    #main_preferences input[type=text] {
+      border-radius: var(--sxng-radius-sm);
+      height: 2.3rem;
+      padding: .4rem .7rem;
+    }
+
+    #main_preferences .category label {
+      border-radius: 8px;
+      padding: .3rem .6rem;
+    }
+
+    /* Upstream sets `border: none` and relies on whitespace alone to group a
+       row. A hairline box is easier to scan down a long tab. `flow-root`
+       because the row's three parts (legend, value, description) are all
+       floated: without a BFC the fieldset has no height and the box would
+       draw as a single line across the top. */
+    #main_preferences fieldset {
+      margin: 10px 8px;
+      padding: .7rem .9rem .8rem;
+      border: 1px solid var(--sxng-hairline);
+      border-radius: var(--sxng-radius-sm);
+      display: flow-root;
+    }
+
+    #main_preferences legend {
+      padding-inline-end: .6rem;
+    }
+
+    #main_preferences div.pref-group {
+      border-radius: var(--sxng-radius-sm);
+      padding: .9rem .8rem;
+    }
+
+    #main_preferences .bang {
+      border-radius: 6px;
+      padding: .2rem .4rem;
+    }
+
+    /* ======================================================================
+       THEME SWATCHES (preferences page)
+       Each circle previews the whole 60° window it selects, as a gradient from
+       --h0 to --h0+60, which is the palette rule made visible.
+       ====================================================================== */
+    #main_preferences h1 {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: .4rem 1.1rem;
+    }
+
+    #sxng-theme-bar {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      /* Relative to the <h1> it sits in. Big enough to be a control rather
+         than a caption, still clearly subordinate to the heading. */
+      font-size: .62em;
+      font-weight: 400;
+      letter-spacing: .02em;
+      color: var(--color-result-engines-font);
+    }
+
+    #sxng-theme-bar .sxng-grp {
+      display: flex;
+      align-items: center;
+      gap: .3rem;
+    }
+
+    #sxng-theme-bar .sxng-lbl {
+      text-transform: uppercase;
+      font-size: .85em;
+      opacity: .8;
+    }
+
+    #sxng-theme-bar button {
+      cursor: pointer;
+      border: 1px solid var(--color-result-border);
+      background: var(--color-toolkit-select-background);
+      color: inherit;
+      font: inherit;
+      padding: 0;
+      border-radius: 999px;
+    }
+
+    #sxng-theme-bar .sxng-sw {
+      width: 1.35em;
+      height: 1.35em;
+      background: linear-gradient(135deg, oklch(68% .14 var(--sw)) 0%, oklch(68% .14 calc(var(--sw) + 60)) 100%);
+    }
+
+    #sxng-theme-bar .sxng-tn {
+      padding: .18em .6em;
+      border-radius: 999px;
+    }
+
+    #sxng-theme-bar button[aria-checked="true"] {
+      outline: 2px solid var(--color-categories-item-border-selected);
+      outline-offset: 2px;
+    }
+
+    #sxng-theme-bar .sxng-tn[aria-checked="true"] {
+      background: var(--color-btn-background);
+      color: var(--color-btn-font);
+    }
+
+    #sxng-theme-bar button:focus-visible {
+      outline: 2px solid var(--color-btn-background);
+      outline-offset: 2px;
+    }
+
+    /* ======================================================================
+       MOTION
+       Discrete properties only -- never `all`, never layout- or
+       paint-expensive ones -- so these stay compositor-cheap.
+       ====================================================================== */
+    @media (prefers-reduced-motion: no-preference) {
+
+      a,
+      .result h3 a,
+      #links_on_top a,
+      button.category_button,
+      .button,
+      input[type=submit],
+      #send_search,
+      #clear_search,
+      select,
+      #main_preferences .category label,
+      #sxng-theme-bar button,
+      .result {
+        transition: color 140ms ease, background-color 160ms ease,
+          border-color 160ms ease, outline-color 140ms ease, opacity 140ms ease,
+          text-decoration-color 140ms ease;
+      }
+
+      .result .engines svg {
+        transition: opacity 160ms ease;
+      }
+
+      .result:hover .engines svg {
+        opacity: .8;
+      }
+    }
+  </style>
+  <script>
+    /* Theme window persistence. Values are indices into the frozen tables
+       below and are range-checked before use, so only numbers that originate
+       here are ever written into CSS -- nothing from storage reaches
+       setProperty as a string. Runs in <head> so the choice is applied before
+       first paint. Storage is per-browser and local; it is not sent anywhere. */
+    (function () {
+      var HUES = [172, 250, 306, 22, 74, 124];
+      var TINTS = [0, 1, 2];
+      var root = document.documentElement;
+      var cur = { h: 0, t: 1 };
+
+      function read(key, len, dflt) {
+        var raw;
+        try { raw = localStorage.getItem(key); } catch (e) { return dflt; }
+        // Strict digits-only: parseInt would accept "0; background:url(...)" as
+        // 0. The emitted value is a literal from the tables either way, but
+        // rejecting non-canonical input outright is the cheaper invariant.
+        if (typeof raw !== 'string' || !/^\d{1,3}$/.test(raw)) return dflt;
+        var v = Number(raw);
+        return (v >= 0 && v < len) ? v : dflt;
+      }
+      function apply() {
+        cur.h = read('sxng.hue', HUES.length, 0);
+        cur.t = read('sxng.tint', TINTS.length, 1);
+        root.style.setProperty('--h0', String(HUES[cur.h]));
+        root.style.setProperty('--tint', String(TINTS[cur.t]));
+      }
+      apply();
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var bar = document.getElementById('sxng-theme-bar');
+        if (!bar) return;
+        var h1 = document.querySelector('#main_preferences h1');
+        if (h1) h1.appendChild(bar);
+
+        function sync() {
+          bar.querySelectorAll('[data-hue]').forEach(function (b) {
+            b.setAttribute('aria-checked', String(Number(b.dataset.hue) === cur.h));
+          });
+          bar.querySelectorAll('[data-tint]').forEach(function (b) {
+            b.setAttribute('aria-checked', String(Number(b.dataset.tint) === cur.t));
+          });
+        }
+        bar.addEventListener('click', function (ev) {
+          var b = ev.target.closest('button');
+          if (!b || !bar.contains(b)) return;
+          try {
+            if (b.dataset.hue !== undefined) localStorage.setItem('sxng.hue', String(Math.trunc(Number(b.dataset.hue))));
+            if (b.dataset.tint !== undefined) localStorage.setItem('sxng.tint', String(Math.trunc(Number(b.dataset.tint))));
+          } catch (e) { /* storage disabled; selection applies for this page only */ }
+          apply();
+          sync();
+        });
+        sync();
+      });
+    })();
+  </script>
+</head>
+
+<body class="{{ endpoint }}_endpoint">
+  {# Do not let an HTML formatter reformat this line. Prettier pads the quoted
+     filter arguments to `replace(" simple/", "" )`, which is a different
+     string: the id renders as `main_simple/preferences` and every
+     `#main_preferences` rule in the sheet above -- ours and upstream's --
+     stops matching. #}
+  <main id="main_{{  self._TemplateReference__context.name|replace("simple/", "")|replace(".html", "") }}" class="{{body_class}}">
+    {% if errors %}
+    <div class="dialog-error" role="alert">
+      <a href="#" class="close" aria-label="close" title="close">×</a>
+      <ul>
+        {% for message in errors %}
+        <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <nav id="links_on_top">
+      {%- from 'simple/icons.html' import icon_big -%}
+      {%- block linkto_about -%}
+      <a href="{{ url_for('info', pagename='about') }}" class="link_on_top_about">{{ icon_big('information-circle')
+        }}<span>{{ _('About') }}</span></a>
+      {%- endblock -%}
+      {%- block linkto_donate -%}
+      {%- if donation_url -%}
+      <a href="{{ donation_url }}" class="link_on_top_donate">{{ icon_big('heart') }}<span>{{ _('Donate') }}</span></a>
+      {%- endif -%}
+      {%- endblock -%}
+      {%- block linkto_preferences -%}
+      {%- if request.args.get('preferences') -%}
+      <a href="{{ url_for('preferences') }}?preferences={{ request.args.get('preferences') }}&preferences_preview_only=true"
+        class="link_on_top_preferences">{{ icon_big('settings') }}<span>{{ _('Preferences') }}</span></a>
+      {%- else -%}
+      <a href="{{ url_for('preferences') }}" class="link_on_top_preferences">{{ icon_big('settings') }}<span>{{
+          _('Preferences') }}</span></a>
+      {%- endif -%}
+      {%- endblock -%}
+    </nav>
+    {% if endpoint == 'preferences' %}
+    {# Relocated next to the <h1> by the head script. hide_if_nojs is upstream's
+      own class: without JS these controls cannot work, so they do not appear.
+      Kept on one line here rather than in the UI tab, which costs a click. #}
+      <div id="sxng-theme-bar" class="hide_if_nojs">
+        <span class="sxng-grp">
+          <span class="sxng-lbl">{{ _('Theme') }}</span>
+          <span class="sxng-grp" role="radiogroup" aria-label="{{ _('Theme') }}">
+            <button type="button" role="radio" class="sxng-sw" data-hue="0" style="--sw:172" title="Seagreen → sky"
+              aria-label="Seagreen"></button>
+            <button type="button" role="radio" class="sxng-sw" data-hue="1" style="--sw:250" title="Indigo → violet"
+              aria-label="Indigo"></button>
+            <button type="button" role="radio" class="sxng-sw" data-hue="2" style="--sw:306" title="Violet → rose"
+              aria-label="Violet"></button>
+            <button type="button" role="radio" class="sxng-sw" data-hue="3" style="--sw:22" title="Rust → amber"
+              aria-label="Rust"></button>
+            <button type="button" role="radio" class="sxng-sw" data-hue="4" style="--sw:74" title="Amber → olive"
+              aria-label="Amber"></button>
+            <button type="button" role="radio" class="sxng-sw" data-hue="5" style="--sw:124" title="Green → teal"
+              aria-label="Green"></button>
+          </span>
+        </span>
+        <span class="sxng-grp">
+          <span class="sxng-lbl">{{ _('Background') }}</span>
+          <span class="sxng-grp" role="radiogroup" aria-label="{{ _('Background') }}">
+            <button type="button" role="radio" class="sxng-tn" data-tint="0">Neutral</button>
+            <button type="button" role="radio" class="sxng-tn" data-tint="1">Subtle</button>
+            <button type="button" role="radio" class="sxng-tn" data-tint="2">Full</button>
+          </span>
+        </span>
+      </div>
+      {% endif %}
+      {% block header %}
+      {% endblock %}
+      {% block content %}
+      {% endblock %}
+  </main>
+  <footer>
+    <p>
+      <a href="{{ url_for('info', pagename='about') }}">SearXNG</a> <span class="sxng-ver">{{ searxng_version
+        }}</span><br>
+      <a href="{{ searxng_git_url }}">{{ _('Source code') }}</a>
+      | <a href="{{ get_setting('brand.issue_url') }}">{{ _('Issue tracker') }}</a>
+      {% if enable_metrics %}| <a href="{{ url_for('stats') }}">{{ _('Engine stats') }}</a>{% endif %}
+      {% if get_setting('brand.public_instances') %}
+      | <a href="{{ get_setting('brand.public_instances') }}">{{ _('Public instances') }}</a>
+      {% endif %}
+      {% if get_setting('general.privacypolicy_url') %}
+      | <a href="{{ get_setting('general.privacypolicy_url') }}">{{ _('Privacy policy') }}</a>
+      {% endif %}
+      {% if get_setting('general.contact_url') %}
+      | <a href="{{ get_setting('general.contact_url') }}">{{ _('Contact instance maintainer') }}</a>
+      {% endif %}
+      {% for title, link in get_setting('brand.custom.links').items() %}
+      | <a href="{{ link }}">{{ _(title) }}</a>
+      {% endfor %}
+    </p>
+  </footer>
+</body>
+
+</html>

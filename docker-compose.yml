@@ -1,0 +1,40 @@
+services:
+  searxng:
+    # Pinned by digest. ui/simple/base.html is a copy of this exact image's
+    # template; on a blind `:latest` pull the copy could go stale against a
+    # changed backend (renamed asset, new context variable) and break the page.
+    # To upgrade: pull, re-extract base.html, re-apply the <style> block, bump
+    # the digest. See ui/README.md.
+    image: searxng/searxng:latest@sha256:3aed6b4bfb4e6a2b3b94c890dafb3f35cb2588493b83818434aa260e8bdeb4d4
+    container_name: searxng
+    ports:
+      - "127.0.0.1:9000:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+      # Read-only: the app must never be able to rewrite its own templates.
+      # Jinja templates execute in app context, so a writable template mount
+      # would turn any file-write bug into code execution.
+      - ./ui/simple/base.html:/usr/local/searxng/searx/templates/simple/base.html:ro
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:9000/
+      - SEARXNG_VALKEY_URL=valkey://valkey:6379/0
+    depends_on:
+      valkey:
+        condition: service_healthy
+    restart: unless-stopped
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    container_name: searxng-valkey
+    command: valkey-server --save 30 1 --loglevel warning
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  valkey-data:

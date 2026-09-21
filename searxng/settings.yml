@@ -1,0 +1,109 @@
+use_default_settings: true
+general:
+  instance_name: "SearXNG"
+  privacypolicy_url: false
+  donation_url: false
+  contact_url: false
+  # shows stats and engine error info
+  enable_metrics: true
+  open_metrics: ""
+
+search:
+  safe_search: 0
+  autocomplete: "duckduckgo" #
+  autocomplete_min: 4
+  favicon_resolver: "duckduckgo"
+  default_lang: "auto"
+  # max_page: 0 # if engine supports paging then 0 = unlimited numbers of pages
+
+  # remove format to deny access, use lower case.
+  # formats: [html, csv, json, rss]
+  formats:
+    - html
+    - json
+
+  # Local backoff after an engine error; reduced backoff times; change as needed for a specific setup.
+  suspended_times:
+    SearxEngineCaptcha: 300
+    SearxEngineTooManyRequests: 60
+    SearxEngineAccessDenied: 120
+    cf_SearxEngineCaptcha: 2200
+    cf_SearxEngineAccessDenied: 2200
+    recaptcha_SearxEngineCaptcha: 2200
+
+server:
+  # Container-internal listener; the host port is set by the mapping in docker-compose.yml (9000:8080).
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "***REMOVED***"
+
+outgoing:
+  # upstream default is 2.0s
+  request_timeout: 2.0
+  # default is 10.0s
+  max_request_timeout: 5.0
+  pool_connections: 200
+  pool_maxsize: 40
+  # non-identifying suffix
+  useragent_suffix: ""
+
+engines:
+  - name: mojeek
+    disabled: false
+
+  - name: mwmbl
+    disabled: true
+  - name: wiby
+    disabled: true
+  - name: crowdview
+    disabled: true
+  - name: searchmysite
+    disabled: true
+  - name: encyclosearch
+    disabled: true
+
+  - name: google cse # most reliable
+    disabled: false
+    weight: 1.25
+  - name: brave
+    disabled: false
+  - name: startpage
+    disabled: false
+  - name: duckduckgo web
+    disabled: false
+  - name: qwant
+    disabled: false
+
+  # rejected general engines (generally, quality is pretty low here)
+  - name: bing
+    disabled: true
+  - name: yahoo
+    disabled: true
+  - name: seznam
+    disabled: true
+  - name: yep
+    disabled: true
+  - name: zapmeta
+    disabled: true
+  - name: privacywall
+    disabled: true
+  - name: infospace
+    disabled: true
+  - name: wolframalpha
+    disabled: true
+  - name: ddg definitions
+    disabled: true
+  - name: currency
+    disabled: true
+  - name: dictzone
+    disabled: true
+  - name: duckduckgo
+    disabled: true
+  - name: lingva
+    disabled: true
+  - name: mymemory translated
+    disabled: true
+  - name: wikidata
+    disabled: true
+  # - name: wikipedia
+  #   disabled: true
