@@ -236,6 +236,24 @@
       --sxng-ok-link: light-dark(oklch(45% 0.082 var(--h-ok-link)), oklch(86% 0.085 var(--h-ok-link)));
       --sxng-ok-link-hover: light-dark(oklch(37% 0.068 var(--h-ok-link)), oklch(92% 0.050 var(--h-ok-link)));
       --sxng-foot-stripe: light-dark(oklch(55% 0.06 var(--h-foot) / .045), oklch(85% 0.06 var(--h-foot) / .030));
+
+      /* Selection: upstream's keyboard/vim highlight and the selected image
+         tile were stock blue (#000bbb / #8af), 90° outside the window. Moved
+         onto the seagreen "selected state" step, with the button font on top
+         so the tile caption keeps its contrast in both schemes. */
+      --color-result-vim-arrow: var(--color-categories-item-border-selected);
+      --color-result-vim-selected: var(--color-result-keyvalue-odd);
+      --color-result-image-span-font-selected: var(--color-btn-font);
+      --color-result-image-background: var(--color-result-keyvalue-odd);
+
+      /* Image viewer: stays dark in both schemes (it is a lightbox), but takes
+         the surface hue instead of a neutral #242424, and the dark-scheme link
+         colour instead of a fixed #8af. */
+      --color-result-detail-background: oklch(19% calc(0.010 * var(--tint)) var(--h-surf));
+      --color-result-detail-font: oklch(95% 0.008 var(--h-surf));
+      --color-result-detail-label-font: oklch(76% 0.014 var(--h-surf));
+      --color-result-detail-hr: oklch(100% 0 0 / .14);
+      --color-result-detail-link: oklch(79% 0.105 var(--h-link));
     }
 
     /* light-dark() reads the used color-scheme, so the theme classes map onto it
@@ -265,6 +283,7 @@
       --color-error-background: oklch(17% 0.045 var(--h-err));
       --color-warning-background: oklch(18% 0.040 var(--h-warn));
       --color-success-background: oklch(17% 0.045 var(--h-ok));
+      --color-result-detail-background: oklch(12% calc(0.008 * var(--tint)) var(--h-surf));
     }
 
     /* ======================================================================
@@ -383,6 +402,105 @@
 
     .result .engines svg {
       opacity: .55;
+    }
+
+    /* ======================================================================
+       IMAGE VIEWER
+       The detail panel opened from an image result. Upstream sizes the image
+       as `max-height: calc(100vh - 42rem)` (-24rem / -2rem at the narrower
+       breakpoints) on top of a fixed 19rem label block and 7rem of padding.
+       Zooming shrinks 100vh in CSS px while the rem terms stay put, so at
+       125-150% the subtraction reaches zero and the image collapses to a
+       sliver or disappears. Even at 100% the arithmetic left it a few hundred
+       px tall.
+
+       Instead, the panel is a flex column: labels take their natural height
+       and the image link takes whatever is left, with the image fitted
+       (object-fit: contain) inside that box. No viewport arithmetic, so it
+       holds at any zoom. When the panel is too short for both, the image
+       keeps a floor and the labels scroll below it.
+
+       Selectors repeat upstream's (same specificity) and win on source order,
+       which also overrides upstream's per-breakpoint max-height values.
+       ====================================================================== */
+    #results.image-detail-open article.result-images[data-vim-selected] .detail {
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 3.75rem 1.5rem 1.5rem;
+      gap: 1rem;
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-images-source {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex: 1 1 0;
+      /* The floor that stops the image being squeezed out by the labels on a
+         short (or zoomed) viewport; beyond it the panel scrolls instead. */
+      min-height: min(18rem, 60vh);
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-images-source img {
+      width: auto;
+      height: auto;
+      min-height: 0;
+      max-width: 100%;
+      /* Resolves against the flexed link box, which is definite. */
+      max-height: 100%;
+      object-fit: contain;
+      border-radius: var(--sxng-radius-sm);
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail .result-images-labels {
+      height: auto;
+      flex: none;
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail .result-images-labels p {
+      margin: .5rem 0;
+    }
+
+    /* A fixed 12rem label column ate half of a narrow panel. A minimum keeps
+       the values aligned; longer translations just widen their own label. */
+    #results.image-detail-open article.result-images[data-vim-selected] .detail .result-images-labels p span {
+      width: auto;
+      min-width: 8.5rem;
+      padding-inline-end: .5rem;
+    }
+
+    /* Upstream docks the panel at `left: 60rem` down to 79.75em, so just
+       above that breakpoint it was ~20rem wide and the image was small in
+       the other direction too. Below 96em it becomes a full-window overlay
+       instead (upstream's own small-screen layout, extended). `inset` is
+       symmetric, so this also covers the RTL sheet's `right: 60rem`. */
+    @media screen and (max-width: 96em) {
+      #results.image-detail-open article.result-images[data-vim-selected] .detail {
+        inset: 0;
+      }
+    }
+
+    @media screen and (max-width: 50em) {
+      #results.image-detail-open article.result-images[data-vim-selected] .detail {
+        padding: 3.75rem .75rem .75rem;
+      }
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-close,
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-previous,
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-next {
+      filter: opacity(60%);
+    }
+
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-close:focus-visible,
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-previous:focus-visible,
+    #results.image-detail-open article.result-images[data-vim-selected] .detail a.result-detail-next:focus-visible {
+      filter: none;
+      outline: 2px solid var(--color-result-detail-link);
+      outline-offset: 2px;
+    }
+
+    article.result-images[data-vim-selected] {
+      border-radius: var(--sxng-radius);
     }
 
     /* ======================================================================
